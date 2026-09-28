@@ -1,97 +1,118 @@
-import java.util.set;
+package core;
 
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+/** A small, address-based heap used by the collector simulations. */
 public class Heap {
-
-    private HeapObject[] slots;
-    private int capacity;
+    private final HeapObject[] slots;
+    private final Set<Integer> roots = new LinkedHashSet<>();
     private int nextId = 1;
-    private Set<Integer> roots;
 
     public Heap(int capacity) {
-        this.capacity = capacity;
+        if (capacity < 0) throw new IllegalArgumentException("capacity must not be negative");
         slots = new HeapObject[capacity];
     }
 
-    public int capacity() {
-        return capacity;
+    public int capacity() { return slots.length; }
+
+    public HeapObject get(int address) {
+        checkAddress(address);
+        return slots[address];
     }
 
-    public HeapObject get(int index) {
-        return slots[index];
+    public void set(int address, HeapObject object) {
+        checkAddress(address);
+        slots[address] = object;
+        if (object == null) roots.remove(address);
     }
 
-    public void set(int index, HeapObject HO) {
-        slots[index] = HO;
-    }
+    public boolean isFree(int address) { return get(address) == null; }
 
-    public boolean isFree(int index) {
-        return slots[index] == null;
-    }
-
+    /** Allocates in the first free slot and returns its address, or -1 when full. */
     public int allocate(String name) {
-        for (int i = 0; i < capacity; i++) {
-            if (isFree(i)) {
-                slots[i] = new HeapObject(nextId, name);
-                nextId++;
-                return i;
+        for (int address = 0; address < slots.length; address++) {
+            if (slots[address] == null) {
+                slots[address] = new HeapObject(nextId++, name);
+                return address;
             }
         }
-
         return -1;
     }
+
     public void addReference(int from, int to) {
-        if (from < 0 || from >= capacity || to < 0 || to >= capacity) {
-        return;
-        }
-
-        if (slots[from] == null || slots[to] == null) {
-        return;
-        }
-
+        if (!hasObject(from) || !hasObject(to)) return;
         slots[from].addReference(to);
-
     }
 
-    public void removeRefrence(int from, int to){
-            if (from < 0 || from >= capacity || to < 0 || to >= capacity) {
-        return;
-        }
-
-        if (slots[from] == null || slots[to] == null) {
-        return;
-        }
-
-        slots[from].removeRefrence(to);
-
+    public void removeReference(int from, int to) {
+        if (!hasObject(from) || !isValidAddress(to)) return;
+        slots[from].removeReference(to);
     }
 
-    public void addRoot(int address){
+    /** Kept for compatibility with the original misspelled API. */
+    @Deprecated
+    public void removeRefrence(int from, int to) { removeReference(from, to); }
 
+    public void addRoot(int address) {
+        if (!hasObject(address)) return;
         roots.add(address);
-
     }
 
-    public void removeRoot(int address){
+    public void removeRoot(int address) {
+        if (!isValidAddress(address)) return;
         roots.remove(address);
-
     }
 
-    public boolean isRoot(int address){
-        return roots.contains(address);
+    public boolean isRoot(int address) {
+        return isValidAddress(address) && roots.contains(address);
     }
 
+    public Set<Integer> getRoots() {
+        return Collections.unmodifiableSet(new LinkedHashSet<>(roots));
+    }
 
+    /** Replaces roots after a moving collector has calculated new addresses. */
+    public void replaceRoots(Set<Integer> newRoots) {
+        for (int address : newRoots) requireObject(address);
+        roots.clear();
+        roots.addAll(newRoots);
+    }
 
-    
+    public int usedSlots() {
+        int used = 0;
+        for (HeapObject object : slots) if (object != null) used++;
+        return used;
+    }
 
+    public int freeSlots() { return capacity() - usedSlots(); }
 
+    private void requireObject(int address) {
+        checkAddress(address);
+        if (slots[address] == null) throw new IllegalArgumentException("no object at address " + address);
+    }
 
+    private boolean hasObject(int address) {
+        return isValidAddress(address) && slots[address] != null;
+    }
 
+    private boolean isValidAddress(int address) {
+        return address >= 0 && address < slots.length;
+    }
 
+    private void checkAddress(int address) {
+        if (address < 0 || address >= slots.length)
+            throw new IndexOutOfBoundsException("invalid heap address: " + address);
+    }
 
-
-
-
-
-
+    @Override
+    public String toString() {
+        StringBuilder result = new StringBuilder();
+        for (int address = 0; address < slots.length; address++) {
+            result.append(String.format("%2d%s: %s%n", address,
+                    roots.contains(address) ? "*" : " ", slots[address]));
+        }
+        return result.toString();
+    }
 }

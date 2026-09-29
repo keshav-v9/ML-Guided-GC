@@ -28,8 +28,9 @@ public class MarkAndSweepCollector implements GarbageCollector {
         for (int address = 0; address < heap.capacity(); address++) {
             HeapObject object = heap.get(address);
             if (object == null) continue;
-            if (!object.isMarked()) heap.set(address, null);
+            if (!object.isMarked()) heap.reclaim(address);
             else object.setMarked(false);
         }
+        heap.finishCollection();
     }
 }

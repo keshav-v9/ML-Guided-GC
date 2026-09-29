@@ -26,6 +26,11 @@ public class CopyingCollector implements GarbageCollector {
                 forward(heap, reference, forwarding, work);
         }
 
+        for (int address = 0; address < heap.capacity(); address++) {
+            if (heap.get(address) != null && !forwarding.containsKey(address))
+                heap.recordDeath(address);
+        }
+
         HeapObject[] copied = new HeapObject[forwarding.size()];
         for (Map.Entry<Integer, Integer> entry : forwarding.entrySet()) {
             HeapObject object = heap.get(entry.getKey());
@@ -44,6 +49,7 @@ public class CopyingCollector implements GarbageCollector {
         Set<Integer> newRoots = new LinkedHashSet<>();
         for (int root : oldRoots) newRoots.add(forwarding.get(root));
         heap.replaceRoots(newRoots);
+        heap.finishCollection();
     }
 
     private void forward(Heap heap, int address, Map<Integer, Integer> forwarding,

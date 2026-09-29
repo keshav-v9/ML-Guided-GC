@@ -22,6 +22,7 @@ public class MarkAndCompactCollector implements GarbageCollector {
         for (int source = 0; source < heap.capacity(); source++) {
             HeapObject object = heap.get(source);
             if (object != null && object.isMarked()) forwarding.put(source, destination++);
+            else if (object != null) heap.recordDeath(source);
         }
 
         Set<Integer> oldRoots = heap.getRoots();
@@ -47,5 +48,6 @@ public class MarkAndCompactCollector implements GarbageCollector {
             if (newRoot != null) newRoots.add(newRoot);
         }
         heap.replaceRoots(newRoots);
+        heap.finishCollection();
     }
 }

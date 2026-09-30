@@ -4,6 +4,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -14,10 +15,14 @@ public class Heap {
 
     private final HeapObject[] slots;
     private final Set<Integer> roots = new LinkedHashSet<>();
+    private final List<HeapObject> allocatedObjects = new ArrayList<>();
     private final List<HeapObject> reclaimedObjects = new ArrayList<>();
+    private final Set<Integer> reclaimedObjectIds = new HashSet<>();
     private final Deque<Long> recentAllocationTicks = new ArrayDeque<>();
     private final int allocationRateWindow;
     private int nextId = 1;
+    private int occupiedSlots;
+    private int firstFreeAddress;
     private long currentTick;
 
     public Heap(int capacity) {
@@ -41,8 +46,16 @@ public class Heap {
 
     public void set(int address, HeapObject object) {
         checkAddress(address);
+        HeapObject previous = slots[address];
         slots[address] = object;
-        if (object == null) roots.remove(address);
+        if (previous == null && object != null) occupiedSlots++;
+        if (previous != null && object == null) occupiedSlots--;
+        if (object == null) {
+            roots.remove(address);
+            firstFreeAddress = Math.min(firstFreeAddress, address);
+        } else if (address == firstFreeAddress) {
+            advanceFirstFreeAddress();
+        }
     }
 
     public boolean isFree(int address) { return get(address) == null; }
@@ -55,18 +68,21 @@ public class Heap {
     /** Allocates an instrumented object while preserving the original allocation API. */
     public int allocate(String name, int sizeBytes, String allocationSite) {
         if (sizeBytes <= 0) throw new IllegalArgumentException("sizeBytes must be positive");
-        for (int address = 0; address < slots.length; address++) {
-            if (slots[address] == null) {
-                discardExpiredAllocationTicks();
-                recentAllocationTicks.addLast(currentTick);
-                double utilization = (usedSlots() + 1.0) / capacity();
-                double rate = recentAllocationTicks.size() / (double) allocationRateWindow;
-                slots[address] = new HeapObject(nextId++, name, sizeBytes, currentTick,
-                        utilization, rate, allocationSite);
-                return address;
-            }
-        }
-        return -1;
+        advanceFirstFreeAddress();
+        if (firstFreeAddress >= slots.length) return -1;
+        int address = firstFreeAddress;
+        discardExpiredAllocationTicks();
+        recentAllocationTicks.addLast(currentTick);
+        double utilization = (occupiedSlots + 1.0) / capacity();
+        double rate = recentAllocationTicks.size() / (double) allocationRateWindow;
+        HeapObject object = new HeapObject(nextId++, name, sizeBytes, currentTick,
+                utilization, rate, allocationSite);
+        slots[address] = object;
+        occupiedSlots++;
+        allocatedObjects.add(object);
+        firstFreeAddress++;
+        advanceFirstFreeAddress();
+        return address;
     }
 
     public long getCurrentTick() { return currentTick; }
@@ -78,6 +94,39 @@ public class Heap {
     }
 
     public int getAllocationRateWindow() { return allocationRateWindow; }
+
+    /** Returns the current address for a stable object id, or -1 if it is not live. */
+    public int addressOfObject(int objectId) {
+        for (int address = 0; address < slots.length; address++) {
+            HeapObject object = slots[address];
+            if (object != null && object.getId() == objectId) return address;
+        }
+        return -1;
+    }
+
+    public boolean isReachable(int address) {
+        return isValidAddress(address) && reachableAddresses().contains(address);
+    }
+
+    /** Fast exact check for an unrooted object with no incoming references. */
+    public boolean noteUnreachableIfUnreferenced(int address) {
+        if (!isValidAddress(address) || slots[address] == null) return true;
+        HeapObject object = slots[address];
+        if (object.getDeathTick() != null) return true;
+        if (roots.contains(address) || object.getIncomingReferenceCount() > 0) return false;
+        object.setDeathTick(currentTick);
+        return true;
+    }
+
+    /** Records the semantic death tick before a later collection reclaims storage. */
+    public void noteUnreachableObjects() {
+        Set<Integer> reachable = reachableAddresses();
+        for (int address = 0; address < slots.length; address++) {
+            HeapObject object = slots[address];
+            if (object != null && !reachable.contains(address) && object.getDeathTick() == null)
+                object.setDeathTick(currentTick);
+        }
+    }
 
     public void addReference(int from, int to) {
         if (!hasObject(from) || !hasObject(to)) return;
@@ -127,9 +176,7 @@ public class Heap {
     }
 
     public int usedSlots() {
-        int used = 0;
-        for (HeapObject object : slots) if (object != null) used++;
-        return used;
+        return occupiedSlots;
     }
 
     public int freeSlots() { return capacity() - usedSlots(); }
@@ -140,6 +187,8 @@ public class Heap {
         HeapObject object = slots[address];
         recordDeath(address);
         slots[address] = null;
+        occupiedSlots--;
+        firstFreeAddress = Math.min(firstFreeAddress, address);
         roots.remove(address);
         object.setMarked(false);
     }
@@ -148,14 +197,18 @@ public class Heap {
     public void recordDeath(int address) {
         requireObject(address);
         HeapObject object = slots[address];
-        if (object.getDeathTick() == null) {
-            object.setDeathTick(currentTick);
+        if (object.getDeathTick() == null) object.setDeathTick(currentTick);
+        if (reclaimedObjectIds.add(object.getId()))
             reclaimedObjects.add(object);
-        }
     }
 
     public List<HeapObject> getReclaimedObjects() {
         return Collections.unmodifiableList(new ArrayList<>(reclaimedObjects));
+    }
+
+    /** Includes both live and reclaimed objects in stable allocation order. */
+    public List<HeapObject> getAllocatedObjects() {
+        return Collections.unmodifiableList(new ArrayList<>(allocatedObjects));
     }
 
     /** Updates per-cycle metadata after a collector has established the final live heap. */
@@ -185,6 +238,23 @@ public class Heap {
         while (!recentAllocationTicks.isEmpty()
                 && recentAllocationTicks.peekFirst() < firstIncludedTick)
             recentAllocationTicks.removeFirst();
+    }
+
+    private void advanceFirstFreeAddress() {
+        while (firstFreeAddress < slots.length && slots[firstFreeAddress] != null)
+            firstFreeAddress++;
+    }
+
+    private Set<Integer> reachableAddresses() {
+        Set<Integer> reachable = new HashSet<>();
+        Deque<Integer> work = new ArrayDeque<>(roots);
+        while (!work.isEmpty()) {
+            int address = work.pop();
+            if (!isValidAddress(address) || slots[address] == null || !reachable.add(address))
+                continue;
+            for (int reference : slots[address].getReferences()) work.push(reference);
+        }
+        return reachable;
     }
 
     private void requireObject(int address) {

@@ -5,10 +5,11 @@ algorithms; it does not replace or modify the JVM's own garbage collector.
 
 ## Current milestone
 
-This repository implements Phase 0 (a stable tracing-GC baseline) and Phase 1
-(instrumented heap objects) of the MiniGC-ML specification. ML does not affect
-reachability. Later policies may use metadata only for safe placement,
-promotion, or scheduling decisions.
+This repository implements Phases 0-3 of the MiniGC-ML specification: a stable
+tracing-GC baseline, instrumented heap objects, deterministic workload families,
+and leakage-safe telemetry CSV generation. ML does not affect reachability.
+Later policies may use metadata only for safe placement, promotion, or
+scheduling decisions.
 
 ## Components
 
@@ -24,7 +25,11 @@ promotion, or scheduling decisions.
   and rewrites roots and references.
 - `gc.CopyingCollector` discovers live objects breadth-first, copies them into a
   contiguous logical region, and rewrites roots and references.
-- `workload.WorkloadGenerator` creates deterministic seeded object graphs.
+- `workload.WorkloadGenerator` creates deterministic seeded short-lived,
+  long-lived, mixed, phase-changing, and graph-stress simulations.
+- `telemetry.TelemetryRecorder` labels completed lifetimes, applies an explicit
+  right-censoring policy, and writes model-independent CSV data.
+- `telemetry.GenerateTelemetry` is the dependency-free dataset-generation CLI.
 - `bench.Benchmark` performs a lightweight, non-JMH collector comparison.
 
 ## Data flow
@@ -41,7 +46,8 @@ roots and address references
         v
 GarbageCollector.collect
         |-- graph tracing determines reachability
-        |-- dead objects receive deathTick and enter reclaimed history
+        |-- reachability transitions assign semantic deathTick
+        |-- reclaimed objects enter retained telemetry history
         `-- survivors advance age and gcCyclesSurvived
 ```
 
@@ -52,6 +58,8 @@ GarbageCollector.collect
 - `allocationTick` uses `Heap`'s explicit logical clock. Workloads advance it
   with `advanceTick`.
 - `deathTick` is assigned when a collector proves an object unreachable.
+- Workload simulations additionally trace after root expiry, so `deathTick`
+  records the reachability transition rather than the later collection pause.
 - New objects are `YOUNG`; future generational policies may promote them to
   `OLD`.
 - `heapUtilizationAtAllocation` is measured immediately after allocation.
@@ -74,8 +82,8 @@ GarbageCollector.collect
 
 ## Deliberate limits of this milestone
 
-There is no generational collector, telemetry CSV writer, Python training
-pipeline, ONNX runtime, ML-guided policy, or production benchmark harness yet.
+There is no generational collector, Python training pipeline, ONNX runtime,
+ML-guided policy, or production benchmark harness yet.
 The repository keeps its existing direct `javac` workflow; adopting JUnit 5 and
 a build tool belongs in the next infrastructure milestone so no unused external
 dependency is introduced.

@@ -5,11 +5,10 @@ algorithms; it does not replace or modify the JVM's own garbage collector.
 
 ## Current milestone
 
-This repository implements Phases 0-3 of the MiniGC-ML specification: a stable
+This repository implements Phases 0-4 of the MiniGC-ML specification: a stable
 tracing-GC baseline, instrumented heap objects, deterministic workload families,
-and leakage-safe telemetry CSV generation. ML does not affect reachability.
-Later policies may use metadata only for safe placement, promotion, or
-scheduling decisions.
+leakage-safe telemetry generation, model training/selection and ONNX deployment,
+and an ML-guided promotion policy. ML does not affect reachability.
 
 ## Components
 
@@ -25,12 +24,20 @@ scheduling decisions.
   and rewrites roots and references.
 - `gc.CopyingCollector` discovers live objects breadth-first, copies them into a
   contiguous logical region, and rewrites roots and references.
+- `gc.MLGuidedCollector` decorates any exact collector, scores its surviving
+  young objects, promotes predicted long-lived objects, and records inference
+  and policy statistics. Model failures leave objects young.
 - `workload.WorkloadGenerator` creates deterministic seeded short-lived,
   long-lived, mixed, phase-changing, and graph-stress simulations.
 - `telemetry.TelemetryRecorder` labels completed lifetimes, applies an explicit
   right-censoring policy, and writes model-independent CSV data.
 - `telemetry.GenerateTelemetry` is the dependency-free dataset-generation CLI.
 - `bench.Benchmark` performs a lightweight, non-JMH collector comparison.
+- `bench.PolicyBenchmark` runs warmups and repeated end-to-end workloads,
+  reports median/p95 time and ML overhead, and verifies that baseline and
+  guided policies produce identical liveness results.
+- `ml/` contains grouped data splitting, preprocessing, candidate-model
+  selection, evaluation, ONNX export, Java runtime inference, and golden tests.
 
 ## Data flow
 
@@ -48,7 +55,9 @@ GarbageCollector.collect
         |-- graph tracing determines reachability
         |-- reachability transitions assign semantic deathTick
         |-- reclaimed objects enter retained telemetry history
-        `-- survivors advance age and gcCyclesSurvived
+        |-- survivors advance age and gcCyclesSurvived
+        `-- optional ML policy predicts survivor lifetime
+                `-- long-lived prediction promotes YOUNG -> OLD
 ```
 
 ## Instrumentation semantics
@@ -60,8 +69,8 @@ GarbageCollector.collect
 - `deathTick` is assigned when a collector proves an object unreachable.
 - Workload simulations additionally trace after root expiry, so `deathTick`
   records the reachability transition rather than the later collection pause.
-- New objects are `YOUNG`; future generational policies may promote them to
-  `OLD`.
+- New objects are `YOUNG`; `MLGuidedCollector` may promote live objects to
+  `OLD` after the configured minimum age.
 - `heapUtilizationAtAllocation` is measured immediately after allocation.
 - `allocationRate` is allocations per tick across the heap's configurable
   trailing window, including the current allocation.
@@ -80,10 +89,12 @@ GarbageCollector.collect
 5. Reclaimed-object history retains metadata needed to construct later labels,
    but reclaimed objects are no longer addressable from the heap.
 
-## Deliberate limits of this milestone
+## Deliberate limits
 
-There is no generational collector, Python training pipeline, ONNX runtime,
-ML-guided policy, or production benchmark harness yet.
-The repository keeps its existing direct `javac` workflow; adopting JUnit 5 and
-a build tool belongs in the next infrastructure milestone so no unused external
-dependency is introduced.
+Generation is policy metadata in this simulator; all generations are still
+traced together by the exact delegate collector. This isolates ML experiments
+from correctness: a false prediction may add overhead or delay an ideal
+promotion, but cannot change liveness. `bench.PolicyBenchmark` is a repeatable
+in-repository harness rather than JMH. The project keeps its direct `javac`
+workflow, and ONNX Runtime remains an optional classpath dependency so the base
+simulator builds without native libraries.

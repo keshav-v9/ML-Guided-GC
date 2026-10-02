@@ -38,7 +38,10 @@ class FeaturePreprocessor:
         medians = numeric.median(axis=0).fillna(0.0)
         filled = numeric.fillna(medians)
         means = filled.mean(axis=0)
-        scales = filled.std(axis=0, ddof=0).replace(0.0, 1.0).fillna(1.0)
+        scales = filled.std(axis=0, ddof=0)
+        # Numerically constant columns can produce tiny non-zero deviations;
+        # treating those as real scales creates enormous or infinite vectors.
+        scales = scales.mask(~np.isfinite(scales) | (scales.abs() < 1e-12), 1.0)
         sites = sorted(frame[CATEGORICAL_COLUMN].fillna("__MISSING__").astype(str).unique())
         return cls(
             numeric_columns=list(NUMERIC_COLUMNS),

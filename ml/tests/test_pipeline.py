@@ -65,6 +65,15 @@ def test_preprocessing_fits_training_only_and_handles_unknown_sites() -> None:
     assert MODEL_INPUT_COLUMNS[-1] == "allocation_site"
 
 
+def test_nearly_constant_numeric_columns_have_stable_scales() -> None:
+    frame = sample_frame()
+    frame["allocation_rate"] = 1.0 + np.arange(len(frame)) * 1e-16
+    preprocessor = FeaturePreprocessor.fit(frame)
+    transformed = preprocessor.transform(frame)
+    assert np.isfinite(transformed).all()
+    assert preprocessor.scales[4] == 1.0
+
+
 def test_dataset_validation_and_labels(tmp_path: Path) -> None:
     path = tmp_path / "telemetry.csv"
     sample_frame().to_csv(path, index=False)

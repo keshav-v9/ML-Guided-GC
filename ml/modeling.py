@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import math
 import time
+import warnings
 from typing import Any
 
 import joblib
@@ -10,11 +11,10 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, roc_auc_score
-from xgboost import XGBClassifier
 
 
 def candidate_models(seed: int) -> dict[str, Any]:
-    return {
+    models: dict[str, Any] = {
         "logistic_regression": LogisticRegression(
             max_iter=1_000, class_weight="balanced", random_state=seed
         ),
@@ -26,7 +26,13 @@ def candidate_models(seed: int) -> dict[str, Any]:
             random_state=seed,
             n_jobs=1,
         ),
-        "xgboost": XGBClassifier(
+    }
+    try:
+        # XGBoost needs a platform OpenMP runtime. Keep it as an optional
+        # candidate so the portable sklearn pipeline remains usable without it.
+        from xgboost import XGBClassifier
+
+        models["xgboost"] = XGBClassifier(
             n_estimators=160,
             max_depth=5,
             learning_rate=0.08,
@@ -35,8 +41,10 @@ def candidate_models(seed: int) -> dict[str, Any]:
             eval_metric="logloss",
             random_state=seed,
             n_jobs=1,
-        ),
-    }
+        )
+    except Exception as error:  # native loader errors vary by xgboost release
+        warnings.warn(f"XGBoost candidate unavailable: {error}", RuntimeWarning)
+    return models
 
 
 def evaluate_model(model: Any, features: np.ndarray, targets: np.ndarray) -> dict[str, Any]:

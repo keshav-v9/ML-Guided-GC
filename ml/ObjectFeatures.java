@@ -1,5 +1,7 @@
 package ml;
 
+import core.HeapObject;
+
 /** Leakage-safe features available before an object's lifetime is known. */
 public final class ObjectFeatures {
     private final int sizeBytes;
@@ -22,6 +24,15 @@ public final class ObjectFeatures {
         this.gcCyclesSurvived = gcCyclesSurvived;
         this.ageAtPrediction = ageAtPrediction;
         this.allocationSite = allocationSite == null ? "__MISSING__" : allocationSite;
+    }
+
+    /** Creates the exact leakage-safe feature vector used by runtime policies. */
+    public static ObjectFeatures from(HeapObject object) {
+        if (object == null) throw new IllegalArgumentException("object must not be null");
+        return new ObjectFeatures(object.getSizeBytes(), object.getIncomingReferenceCount(),
+                object.getOutgoingReferenceCount(), object.getHeapUtilizationAtAllocation(),
+                object.getAllocationRate(), object.getGcCyclesSurvived(), object.getAge(),
+                object.getAllocationSite());
     }
 
     public int getSizeBytes() { return sizeBytes; }

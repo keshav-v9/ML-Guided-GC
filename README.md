@@ -9,12 +9,13 @@ An educational Java simulation of three tracing garbage collectors:
 Objects live in an address-based `Heap`; roots and inter-object references are heap
 addresses. Moving collectors update both roots and references.
 
-The project currently covers the first two MiniGC-ML milestones: the collector
-baseline and instrumentation, plus deterministic workloads and leakage-safe
-telemetry generation. Objects record synthetic size, logical allocation/death
-ticks, allocation context, generation, reference counts, and collection
-survival counts. Reachability remains entirely graph-based; this milestone does
-not use ML.
+The project covers all five MiniGC-ML milestones: tracing-collector baselines,
+instrumentation, deterministic workloads and leakage-safe telemetry, model
+training and ONNX export/runtime inference, and a safe ML-guided promotion
+policy with an end-to-end benchmark. Objects record synthetic size, logical
+allocation/death ticks, allocation context, generation, reference counts, and
+collection survival counts. Reachability always remains graph-based; ML can
+change generation metadata but can never decide that an object is dead.
 
 ## Run
 
@@ -25,7 +26,9 @@ javac Main.java core/*.java gc/*.java workload/*.java telemetry/*.java bench/*.j
 java Main
 java tests.GarbageCollectorTest
 java tests.WorkloadTelemetryTest
+java tests.MLGuidedCollectorTest
 java bench.Benchmark
+java bench.PolicyBenchmark
 ```
 
 Generate a deterministic telemetry dataset:
@@ -51,5 +54,40 @@ post-death and target fields.
 `Allocator` retries an allocation after invoking its configured collector when the
 heap is full. `WorkloadGenerator` produces deterministic graphs and lifetime
 simulations for comparisons.
+
+## Train and use the lifetime model
+
+Install the Python dependencies in a virtual environment, then generate data
+from at least three workload/seed runs so the train, validation, and test groups
+remain disjoint:
+
+```sh
+python3 -m venv .venv
+.venv/bin/pip install -r ml/requirements.txt
+java telemetry.GenerateTelemetry \
+  --workloads short-lived,long-lived,mixed,phase-changing,graph-stress \
+  --seeds 41,42,43 --objects 1000 --capacity 1000 \
+  --output data/raw/telemetry.csv
+.venv/bin/python -m ml.train \
+  --data data/raw/telemetry.csv --output ml/artifacts/latest
+.venv/bin/python -m ml.export_onnx \
+  --model-dir ml/artifacts/latest --golden-data data/raw/telemetry.csv \
+  --output ml/models/lifetime.onnx
+```
+
+XGBoost is included as a candidate when its native OpenMP runtime is available;
+otherwise training continues portably with logistic regression and random
+forest.
+
+`MLGuidedCollector` wraps any exact collector and promotes surviving young
+objects predicted to be long-lived. Prediction failures fail open: the object
+stays young and normal tracing continues. To benchmark a real exported model,
+put the ONNX Runtime Java JAR on the classpath and run:
+
+```sh
+java -cp ".:path/to/onnxruntime.jar" bench.PolicyBenchmark \
+  ml/models/lifetime.onnx ml/models/lifetime.properties
+```
+
 See `ARCHITECTURE.md` for component responsibilities and instrumentation
 semantics.

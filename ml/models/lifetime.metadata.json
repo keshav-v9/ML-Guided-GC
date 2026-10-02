@@ -1,0 +1,30 @@
+{
+  "feature_order": [
+    "size_bytes",
+    "incoming_reference_count",
+    "outgoing_reference_count",
+    "heap_utilization_at_allocation",
+    "allocation_rate",
+    "gc_cycles_survived",
+    "age_at_prediction",
+    "allocation_site=graph-pattern-0",
+    "allocation_site=graph-pattern-1",
+    "allocation_site=graph-pattern-2",
+    "allocation_site=graph-pattern-3",
+    "allocation_site=long-lived",
+    "allocation_site=mixed",
+    "allocation_site=phase-long",
+    "allocation_site=phase-short",
+    "allocation_site=short-lived",
+    "allocation_site=__UNKNOWN__"
+  ],
+  "golden_data": "/Users/keshavvarma/JVM Project/ml/models/lifetime_golden.csv",
+  "input_name": "features",
+  "max_python_onnx_delta": 5.612626708013935e-08,
+  "model": "/Users/keshavvarma/JVM Project/ml/models/lifetime.onnx",
+  "probability_index": 1,
+  "probability_output": "probabilities",
+  "properties": "/Users/keshavvarma/JVM Project/ml/models/lifetime.properties",
+  "threshold": 0.7,
+  "tolerance": 1e-05
+}

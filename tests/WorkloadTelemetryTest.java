@@ -9,6 +9,9 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import ml.FakeLifetimePredictor;
+import ml.ObjectFeatures;
+import ml.Prediction;
 import telemetry.CensoringPolicy;
 import telemetry.LifetimeLabel;
 import telemetry.ObjectTelemetry;
@@ -32,6 +35,7 @@ public final class WorkloadTelemetryTest {
         testTelemetryLabelsAndCensoring();
         testCsvOutputAndLeakageGuard();
         testConfigurationValidation();
+        testFakePredictor();
         System.out.println("All workload and telemetry tests passed.");
     }
 
@@ -163,6 +167,17 @@ public final class WorkloadTelemetryTest {
                 WorkloadType.MIXED, 10, 10, 1, 0, 3, 30, 0.2));
         expectThrows(IllegalArgumentException.class, () -> new WorkloadConfig(
                 WorkloadType.MIXED, 10, 10, 1, 2, 3, 30, 1.1));
+    }
+
+    private static void testFakePredictor() {
+        FakeLifetimePredictor predictor = new FakeLifetimePredictor(
+                features -> features.getSizeBytes() >= 128 ? 0.9 : 0.1, 0.7);
+        Prediction prediction = predictor.predict(new ObjectFeatures(
+                256, 1, 2, 0.5, 1.2, 1, 1, "test"));
+        check(prediction.isLongLived() && prediction.getProbability() == 0.9,
+                "the fake predictor should provide deterministic policy tests");
+        check(prediction.getInferenceNanos() >= 0,
+                "predictors should report inference overhead");
     }
 
     private static WorkloadConfig config(WorkloadType type) {

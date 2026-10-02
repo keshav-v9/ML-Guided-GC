@@ -3,6 +3,7 @@ package telemetry;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -17,30 +18,41 @@ public final class GenerateTelemetry {
 
     public static void main(String[] args) throws Exception {
         Map<String, String> options = parseOptions(args);
-        WorkloadType type = WorkloadType.valueOf(options.getOrDefault("workload", "mixed")
-                .toUpperCase(Locale.ROOT).replace('-', '_'));
         int objects = integer(options, "objects", 1_000);
         int capacity = integer(options, "capacity", Math.max(1, objects));
-        long seed = longValue(options, "seed", 42L);
-        WorkloadConfig defaults = WorkloadConfig.defaults(type, capacity, objects, seed);
-        WorkloadConfig config = new WorkloadConfig(type, capacity, objects, seed,
-                integer(options, "collection-interval", defaults.getCollectionInterval()),
-                integer(options, "short-lifetime", defaults.getShortLifetimeTicks()),
-                integer(options, "long-lifetime", defaults.getLongLifetimeTicks()),
-                decimal(options, "long-fraction", defaults.getLongLivedFraction()));
         long threshold = longValue(options, "lifetime-threshold", 10L);
         CensoringPolicy policy = CensoringPolicy.valueOf(options
                 .getOrDefault("censoring", "label-long-if-threshold-exceeded")
                 .toUpperCase(Locale.ROOT).replace('-', '_'));
         Path output = Paths.get(options.getOrDefault("output", "data/raw/telemetry.csv"));
 
-        WorkloadResult result = WorkloadGenerator.run(config);
         TelemetryRecorder recorder = new TelemetryRecorder();
-        List<ObjectTelemetry> rows = recorder.record(result, threshold, policy);
+        List<ObjectTelemetry> rows = new ArrayList<>();
+        int totalAllocations = 0;
+        int totalCollections = 0;
+        for (String workloadName : options.getOrDefault("workloads",
+                options.getOrDefault("workload", "mixed")).split(",")) {
+            WorkloadType type = WorkloadType.valueOf(workloadName.trim()
+                    .toUpperCase(Locale.ROOT).replace('-', '_'));
+            for (String seedText : options.getOrDefault("seeds",
+                    options.getOrDefault("seed", "42")).split(",")) {
+                long seed = Long.parseLong(seedText.trim());
+                WorkloadConfig defaults = WorkloadConfig.defaults(type, capacity, objects, seed);
+                WorkloadConfig config = new WorkloadConfig(type, capacity, objects, seed,
+                        integer(options, "collection-interval", defaults.getCollectionInterval()),
+                        integer(options, "short-lifetime", defaults.getShortLifetimeTicks()),
+                        integer(options, "long-lifetime", defaults.getLongLifetimeTicks()),
+                        decimal(options, "long-fraction", defaults.getLongLivedFraction()));
+                WorkloadResult result = WorkloadGenerator.run(config);
+                rows.addAll(recorder.record(result, threshold, policy));
+                totalAllocations += objects;
+                totalCollections += result.getCollectionCount();
+            }
+        }
         recorder.writeCsv(output, rows);
         System.out.printf(Locale.ROOT,
                 "Wrote %,d labeled rows from %,d allocations to %s (%d collections).%n",
-                rows.size(), config.getObjectCount(), output, result.getCollectionCount());
+                rows.size(), totalAllocations, output, totalCollections);
     }
 
     private static Map<String, String> parseOptions(String[] args) {

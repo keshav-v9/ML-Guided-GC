@@ -37,7 +37,7 @@ def export(args: argparse.Namespace) -> dict[str, Any]:
     else:
         converted = convert_sklearn(
             model,
-            "MiniGC lifetime classifier",
+            "ML-Guided-GC lifetime classifier",
             initial_types=[("features", FloatTensorType([None, vector_size]))],
             target_opset=args.opset,
             options={id(model): {"zipmap": False}},
@@ -123,7 +123,9 @@ def _write_golden(path: Path, frame: Any, probabilities: np.ndarray) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Export the selected MiniGC model to ONNX")
+    parser = argparse.ArgumentParser(
+        description="Export the selected ML-Guided-GC model to ONNX"
+    )
     parser.add_argument("--model-dir", default="ml/artifacts/latest")
     parser.add_argument("--golden-data", required=True)
     parser.add_argument("--output", default="ml/models/lifetime.onnx")

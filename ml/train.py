@@ -127,7 +127,9 @@ def _log_metrics(prefix: str, metrics: dict[str, Any]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train and select MiniGC lifetime models")
+    parser = argparse.ArgumentParser(
+        description="Train and select ML-Guided-GC lifetime models"
+    )
     parser.add_argument("--data", required=True, help="Telemetry CSV containing multiple runs")
     parser.add_argument("--output", default="ml/artifacts/latest")
     parser.add_argument("--seed", type=int, default=42)

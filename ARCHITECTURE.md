@@ -1,11 +1,11 @@
-# MiniGC Architecture
+# ML-Guided-GC Architecture
 
-MiniGC is an address-based garbage-collection simulator. It models collector
+ML-Guided-GC is an address-based garbage-collection simulator. It models collector
 algorithms; it does not replace or modify the JVM's own garbage collector.
 
 ## Current milestone
 
-This repository implements Phases 0-4 of the MiniGC-ML specification: a stable
+This repository implements Phases 0-4 of the ML-Guided-GC specification: a stable
 tracing-GC baseline, instrumented heap objects, deterministic workload families,
 leakage-safe telemetry generation, model training/selection and ONNX deployment,
 and an ML-guided promotion policy. ML does not affect reachability.

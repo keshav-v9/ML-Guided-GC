@@ -12,7 +12,9 @@ from ml.modeling import evaluate_model, inference_latency
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Evaluate a trained MiniGC model")
+    parser = argparse.ArgumentParser(
+        description="Evaluate a trained ML-Guided-GC model"
+    )
     parser.add_argument("--data", required=True)
     parser.add_argument("--model-dir", default="ml/artifacts/latest")
     parser.add_argument("--latency-repetitions", type=int, default=50)

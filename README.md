@@ -1,4 +1,4 @@
-# JVM Garbage Collection Simulator
+# ML-Guided Garbage Collection Simulator
 
 An educational Java simulation of three tracing garbage collectors:
 
@@ -9,7 +9,7 @@ An educational Java simulation of three tracing garbage collectors:
 Objects live in an address-based `Heap`; roots and inter-object references are heap
 addresses. Moving collectors update both roots and references.
 
-The project covers all five MiniGC-ML milestones: tracing-collector baselines,
+The project covers all five ML-Guided-GC milestones: tracing-collector baselines,
 instrumentation, deterministic workloads and leakage-safe telemetry, model
 training and ONNX export/runtime inference, and a safe ML-guided promotion
 policy with an end-to-end benchmark. Objects record synthetic size, logical

@@ -1,1 +1,1 @@
-"""MiniGC-ML training, evaluation, and ONNX export package."""
+"""ML-Guided-GC training, evaluation, and ONNX export package."""

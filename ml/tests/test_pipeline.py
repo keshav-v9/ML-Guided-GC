@@ -104,3 +104,25 @@ def test_metrics_include_required_outputs() -> None:
     assert metrics["f1"] == 1.0
     assert metrics["roc_auc"] == 1.0
     assert metrics["confusion_matrix"] == [[2, 0], [0, 2]]
+
+
+def test_numpy_metrics_match_sklearn_and_torch_net_runs():
+    from sklearn.metrics import roc_auc_score
+
+    torch = pytest.importorskip("torch")
+    from ml.numpy_report import confusion, precision_recall_f1, roc_auc
+    from ml.torch_model import LifetimeNet, fit, predict_proba
+
+    rng = np.random.default_rng(0)
+    targets = rng.integers(0, 2, 400)
+    scores = np.clip(targets * 0.3 + rng.normal(0.35, 0.25, 400), 0, 1)
+    assert roc_auc(targets, scores) == pytest.approx(roc_auc_score(targets, scores))
+    assert confusion(targets, scores).sum() == 400
+    assert 0.0 <= precision_recall_f1(confusion(targets, scores))[2] <= 1.0
+
+    features = rng.normal(size=(300, 5)).astype(np.float32)
+    y = (features[:, 0] > 0).astype(np.int64)
+    model, history = fit(features, y, features, y, epochs=30, batch_size=64, learning_rate=1e-2, seed=0)
+    assert isinstance(model, LifetimeNet)
+    assert history["train_loss"][-1] < history["train_loss"][0]
+    assert roc_auc(y, predict_proba(model, features)) > 0.9

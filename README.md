@@ -141,6 +141,34 @@ Regenerate the figure (metrics are computed with the NumPy functions in
 predictions are written to `ml/artifacts/torch/`. This model is not exported
 to ONNX or used by the Java collector.
 
+### Model comparison
+
+`ml.compare_models` scores all four candidates on the same held-out runs
+(2,990 objects, seed 42) with the NumPy metrics, and measures per-row latency
+and serialized size:
+
+![Model comparison: ROC, F1, and accuracy vs latency](docs/model_comparison.png)
+
+| Model | F1 | ROC AUC | ECE | Mean ns/row | Size |
+|---|---:|---:|---:|---:|---:|
+| Logistic regression | 0.8578 | 0.9334 | 0.0452 | 246 | 1.0 KB |
+| PyTorch MLP | 0.8650 | 0.9439 | 0.0236 | 82 | 7.1 KB |
+| Random forest | 0.8751 | 0.9425 | 0.0469 | 15,216 | 4.1 MB |
+| XGBoost | 0.8718 | 0.9469 | 0.0246 | 1,026 | 248 KB |
+
+The tree ensembles and the MLP are all within about 2 F1 points of logistic
+regression, but the random forest is ~60x slower and ~4,000x larger. Logistic
+regression remains the selected model because of the latency-aware rule in
+`ml.train`: it was a validation tie on F1 (0.614 for all three sklearn
+candidates) and the cheapest model. XGBoost has the best AUC and the MLP the
+lowest per-row latency here, so a larger-gain use case could justify either.
+
+Caveats: latencies are Python batch-of-256 averages on one machine, not the
+single-call ONNX Runtime latency (555 ns) quoted above, and are only comparable
+to each other. Results are one seed; sklearn/XGBoost are refit on train+validation
+while the MLP trains on train only and early-stops on validation. Regenerate
+with `.venv/bin/python -m ml.compare_models --data data/raw/telemetry.csv`.
+
 `MLGuidedCollector` wraps any exact collector and promotes surviving young
 objects predicted to be long-lived. Prediction failures fail open: the object
 stays young and normal tracing continues. To benchmark a real exported model,

@@ -1,0 +1,42 @@
+{
+  "test_rows": 2990,
+  "seed": 42,
+  "models": {
+    "PyTorch MLP": {
+      "f1": 0.8649738008867391,
+      "precision": 0.8604651162790697,
+      "recall": 0.8695299837925445,
+      "roc_auc": 0.9439324492455596,
+      "ece": 0.023553036574796415,
+      "mean_inference_nanos": 81.543046875,
+      "model_size_bytes": 7253
+    },
+    "Logistic regression": {
+      "f1": 0.8578161822466613,
+      "precision": 0.8323170731707317,
+      "recall": 0.8849270664505673,
+      "roc_auc": 0.9334169857086424,
+      "ece": 0.045186267026521613,
+      "mean_inference_nanos": 246.337578125,
+      "model_size_bytes": 1023
+    },
+    "Random forest": {
+      "f1": 0.8751000800640512,
+      "precision": 0.8647151898734177,
+      "recall": 0.8857374392220422,
+      "roc_auc": 0.94250714383286,
+      "ece": 0.046867797824975965,
+      "mean_inference_nanos": 15216.217265625,
+      "model_size_bytes": 4268329
+    },
+    "XGBoost": {
+      "f1": 0.8717532467532467,
+      "precision": 0.8731707317073171,
+      "recall": 0.8703403565640194,
+      "roc_auc": 0.9468991242805402,
+      "ece": 0.024592330705461688,
+      "mean_inference_nanos": 1025.872265625,
+      "model_size_bytes": 253801
+    }
+  }
+}

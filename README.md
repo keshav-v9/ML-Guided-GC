@@ -127,7 +127,9 @@ calibration bins, ECE, best-F1 threshold) in plain NumPy:
 ```
 
 On the reference dataset the MLP reached F1 0.865 and ROC AUC 0.944 on the
-held-out test runs (ECE 0.024).
+held-out test runs (ECE 0.024). Weights, preprocessor, JSON report and test
+predictions are written to `ml/artifacts/torch/`. This model is not exported
+to ONNX or used by the Java collector.
 
 ![ROC, calibration, confusion matrix and training loss](docs/ml_results.png)
 
@@ -137,9 +139,6 @@ Regenerate the figure (metrics are computed with the NumPy functions in
 ```sh
 .venv/bin/python -m ml.plot_results --data data/raw/telemetry.csv
 ```
- Weights, preprocessor, JSON report and test
-predictions are written to `ml/artifacts/torch/`. This model is not exported
-to ONNX or used by the Java collector.
 
 ### Model comparison
 

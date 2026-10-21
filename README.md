@@ -24,9 +24,13 @@ lifetime classifier. On a reproducible synthetic dataset of 14,959 labeled
 objects, the selected logistic-regression model achieved the following held-out
 results:
 
-| F1 | ROC AUC | Precision | Recall | Mean inference | Model size |
+| F1 | ROC AUC | Precision | Recall | Mean inference (Python, batch) | Model size |
 |---:|---:|---:|---:|---:|---:|
 | 0.8578 | 0.9334 | 0.8323 | 0.8849 | 555 ns | 1,023 B |
+
+The mean inference time is `predict_proba` on batches of 256 rows in Python
+(`ml/modeling.py`), averaged per row. It is not ONNX Runtime latency and varies
+between runs (233-246 ns on later runs).
 
 Latency-aware selection preferred logistic regression over a 3.7 MB random
 forest with similar validation F1. ONNX export preserved the Python model's
@@ -162,9 +166,9 @@ regression remains the selected model because of the latency-aware rule in
 candidates) and the cheapest model. XGBoost has the best AUC and the MLP the
 lowest per-row latency here, so a larger-gain use case could justify either.
 
-Caveats: latencies are Python batch-of-256 averages on one machine, not the
-single-call ONNX Runtime latency (555 ns) quoted above, and are only comparable
-to each other. Results are one seed; sklearn/XGBoost are refit on train+validation
+Caveats: latencies are Python batch-of-256 averages on one machine, like the
+555 ns figure above (not ONNX Runtime latency), and are only comparable to each
+other. Results are one seed; sklearn/XGBoost are refit on train+validation
 while the MLP trains on train only and early-stops on validation. Regenerate
 with `.venv/bin/python -m ml.compare_models --data data/raw/telemetry.csv`.
 
